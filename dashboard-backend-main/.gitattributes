@@ -1,0 +1,12 @@
+# Força LF nos arquivos que rodam dentro de containers Linux/bash,
+# independente do sistema operacional de quem faz o checkout (evita
+# scripts .sh quebrando com "$'\r': command not found").
+* text=auto eol=lf
+
+*.sh   text eol=lf
+*.py   text eol=lf
+*.sql  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.conf text eol=lf
+Dockerfile text eol=lf

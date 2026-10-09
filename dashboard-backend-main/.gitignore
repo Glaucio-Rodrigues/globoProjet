@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.venv/
+*.log
+
+# variáveis de ambiente reais (use .env.example como referência)
+.env
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# modelo de IA treinado localmente
+data_ia/modelo_etc.pkl
+_to_delete

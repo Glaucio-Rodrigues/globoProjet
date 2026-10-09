@@ -1,0 +1,86 @@
+# docker-compose.yml
+version: "3.9"
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: globo2-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-globo2_db}
+      DB_USER: ${DB_USER:-globo_user}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      PREDICTOR_URL: ${PREDICTOR_URL:-http://data_ia:5001}
+    depends_on:
+      postgres:
+        condition: service_healthy  # espera o postgres estar PRONTO de verdade
+      redis:
+        condition: service_healthy
+
+  data_ia:
+    build:
+      context: ./data_ia
+      dockerfile: Dockerfile
+    container_name: globo2-data-ia
+    restart: always
+    ports:
+      - "5001:5001"
+    environment:
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-globo2_db}
+      DB_USER: ${DB_USER:-globo_user}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+    volumes:
+      - data_ia_model:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16
+    container_name: globo2-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME:-globo2_db}
+      POSTGRES_USER: ${DB_USER:-globo_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-123456}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-globo_user} -d ${DB_NAME:-globo2_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7
+    container_name: globo2-redis
+    restart: always
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis_config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  data_ia_model:

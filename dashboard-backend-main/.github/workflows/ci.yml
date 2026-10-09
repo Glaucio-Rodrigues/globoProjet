@@ -1,0 +1,70 @@
+name: CI
+
+# Valida o padrao de commit semantico (Conventional Commits) sem depender
+# de aprovacao de PR. Dois casos:
+#   - push (qualquer branch, ex.: staging, main): valida a mensagem de
+#     cada commit novo enviado.
+#   - pull_request (quando alguem abrir um PR por conta propria, ex.: pra
+#     mergear staging -> main): valida o titulo do PR no mesmo padrao.
+on:
+  push:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  validate-commit:
+    if: github.event_name == 'push'
+    name: Valida commits (push)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Valida mensagens de commit (Conventional Commits)
+        run: |
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.event.after }}"
+          ZERO="0000000000000000000000000000000000000000"
+
+          COMMITS=""
+          if [ "$BEFORE" != "$ZERO" ] && [ -n "$BEFORE" ]; then
+            # Se BEFORE nao existir mais no historico (ex.: depois de um
+            # git push --force que reescreveu commits), o intervalo fica
+            # invalido. Nesse caso cai no fallback abaixo em vez de quebrar.
+            COMMITS=$(git log --format=%s "$BEFORE..$AFTER" 2>/dev/null || true)
+          fi
+          if [ -z "$COMMITS" ]; then
+            COMMITS=$(git log -1 --format=%s "$AFTER")
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            echo "Nenhum commit novo para validar."
+            exit 0
+          fi
+
+          while IFS= read -r msg; do
+            [ -z "$msg" ] && continue
+            echo "Commit: $msg"
+            if echo "$msg" | grep -Eq "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?: .{1,}"; then
+              echo "  OK"
+            else
+              echo "  Invalido. Use o padrao: tipo(escopo): descricao"
+              exit 1
+            fi
+          done <<< "$COMMITS"
+
+  validate-pr-title:
+    if: github.event_name == 'pull_request'
+    name: Valida titulo do PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verifica titulo do PR (Conventional Commits)
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "PR title: $PR_TITLE"
+          echo "$PR_TITLE" | grep -Eq "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?: .{1,}" \
+            && echo "Title is valid." \
+            || { echo "Invalid title. Use conventional commits format: type(scope): description"; exit 1; }
